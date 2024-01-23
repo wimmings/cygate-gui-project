@@ -25,6 +25,7 @@ import mpl_scatter_density # adds projection='scatter_density'
 
 from manual_graph import ManualGraph
 import subprocess
+import re
 
 class MainView(QMainWindow):    
     def __init__(self):
@@ -56,11 +57,12 @@ class MainView(QMainWindow):
         UI_set.manual_graph_tab.tabCloseRequested.connect(self.close_tab)
 
         self.paths = []
-        
+
         self.setCentralWidget(UI_set)
         self.setWindowTitle("UI TEST")
-        self.resize(1000,800)
+        self.resize(1200,800)
         self.show()
+    
     def select_train(self):
         global configFile
         # config file 만들기
@@ -173,13 +175,25 @@ class MainView(QMainWindow):
 
     def remove_list(self): # manual list 항목 제거
         selected_item = UI_set.manual_list.currentItem()
+        name = selected_item.text()
         if selected_item:
-            row = UI_set.manual_list.row(selected_item)
-            UI_set.manual_list.takeItem(row)
-            del self.paths[row]
+            reply = QMessageBox.question(self, 'Item Remove', 'Do you really want to Remove Item?\n' + name,
+                                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+
+            if reply == QMessageBox.Yes:
+                row = UI_set.manual_list.row(selected_item)
+                UI_set.manual_list.takeItem(row)
+                del self.paths[row]
+        
+            
 
     def clear_list(self):  # manual list 클리어
-        UI_set.manual_list.clear()
+        reply = QMessageBox.question(self, 'List Clear', 'Do you really want to clear list?',
+                                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+
+        if reply == QMessageBox.Yes:
+            UI_set.manual_list.clear()
+            self.paths = []
 
     def load_data(self): # manual list 항목 추가
         file_dialog = QFileDialog()
@@ -196,25 +210,53 @@ class MainView(QMainWindow):
             UI_set.manual_list.addItems(selected_files_name)
 
     def close_tab(self, index):
-            tab_instance = self.sender()
-            tab_instance.removeTab(index)
+        tab = self.sender()
+        name = tab.tabText(index)
+        reply = QMessageBox.question(self, 'Close Tab', 'Do you really want to close?\n' + name,
+                                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+
+        if reply == QMessageBox.Yes:
+            tab.removeTab(index)
+            
+
+    def merge_data(self, items):
+        items_list = [item.text() for item in items]
+        cleaned_strings = [re.sub(r'\d', '', item) for item in items_list]
+        if len(set(cleaned_strings)) == 1:
+            combined_data = pd.DataFrame()
+            data_path = self.paths[UI_set.manual_list.currentRow()] + "/"
+            tooltip_list = []
+            for i in items_list:
+                df = pd.read_csv(data_path+i)
+                combined_data = pd.concat([combined_data, df], ignore_index=True)
+                tooltip_list.append(i.split('_')[1]) # 수정 필요
+            # 숫자 sort 필요
+            self.tooltip = ','.join(tooltip_list)
+            return combined_data
+        
+        print("Error : different file name")
+        return
     
     def manual_run(self):
-        data_path = self.paths[UI_set.manual_list.currentRow()] + "/" + UI_set.manual_list.currentItem().text()
-        data_name = UI_set.manual_list.currentItem().text()
-        data = pd.read_csv(data_path)
-        
+        selected_items  = UI_set.manual_list.selectedItems()
+        if len(selected_items) == 1:
+            data_name = UI_set.manual_list.currentItem().text()
+            data_path = self.paths[UI_set.manual_list.currentRow()] + "/" + data_name
+            data = pd.read_csv(data_path)
+        else:
+            data = self.merge_data(selected_items)
+            data_name = UI_set.manual_list.currentItem().text().split('_')[0] + "_merge_" + self.tooltip
         tab_instance = QTabWidget()
         tab_instance.setDocumentMode(True)
         tab_instance.setTabsClosable(True)
         tab_instance.tabCloseRequested.connect(self.close_tab)
-
-        manual_graph_instance = ManualGraph(data)
-
-        tab_instance.addTab(manual_graph_instance, "Original")
-        UI_set.manual_graph_tab.addTab(tab_instance, data_name)
-
         
+        manual_graph_instance = ManualGraph(data, tab_instance, ["Original"])
+
+        instance_index = tab_instance.addTab(manual_graph_instance, "Original")
+        tab_instance.setTabToolTip(instance_index,"Original")
+        index = UI_set.manual_graph_tab.addTab(tab_instance, data_name)
+        UI_set.manual_graph_tab.setTabToolTip(index,data_name)
 
 # 파일 경로 찾기
 def resource_path(relative_path):

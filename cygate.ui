@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1000</width>
+    <width>1200</width>
     <height>800</height>
    </rect>
   </property>
@@ -168,7 +168,11 @@
           </widget>
          </item>
          <item row="4" column="0" colspan="3">
-          <widget class="QListWidget" name="manual_list"/>
+          <widget class="QListWidget" name="manual_list">
+           <property name="selectionMode">
+            <enum>QAbstractItemView::ExtendedSelection</enum>
+           </property>
+          </widget>
          </item>
         </layout>
        </widget>
@@ -177,7 +181,7 @@
          <rect>
           <x>280</x>
           <y>10</y>
-          <width>671</width>
+          <width>891</width>
           <height>671</height>
          </rect>
         </property>
@@ -200,6 +204,19 @@
          <bool>false</bool>
         </property>
        </widget>
+       <widget class="QLabel" name="label_4">
+        <property name="geometry">
+         <rect>
+          <x>80</x>
+          <y>10</y>
+          <width>71</width>
+          <height>31</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Select Data</string>
+        </property>
+       </widget>
       </widget>
      </widget>
     </item>
@@ -218,7 +235,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1000</width>
+     <width>1200</width>
      <height>37</height>
     </rect>
    </property>

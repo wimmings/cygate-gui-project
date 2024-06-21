@@ -2,6 +2,7 @@ import os
 import pandas as pd
 from matplotlib import pyplot as plt
 from PySide6 import QtGui
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import *
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
@@ -21,6 +22,7 @@ class ManualGraph(QWidget):
         self.gating = gating
         self.count = None
         self.csv_name = csv_name
+        self.selected_list = []
         self.initUI()
     
     def initUI(self):
@@ -29,9 +31,11 @@ class ManualGraph(QWidget):
         self.canvas = FigureCanvas(self.fig)
         final_layout = QHBoxLayout(self)
         gating_layout = QVBoxLayout()
+        gating_sub_layout = QHBoxLayout()
         layout = QVBoxLayout()
         H_layout = QHBoxLayout()
         H2_layout = QHBoxLayout()
+        plot_mode_layout = QHBoxLayout()
         btn_layout = QGridLayout()
 
         # gating_layout
@@ -43,147 +47,213 @@ class ManualGraph(QWidget):
 
         # legend
         plot_legend_label = QLabel("Plot legend")
-        gating_layout.addWidget(plot_legend_label)
+        gating_sub_layout.addWidget(plot_legend_label)
+
+        select_all_button = QPushButton('Select All')
+        select_all_button.clicked.connect(self.select_all)
+
+        deselect_all_button = QPushButton('Deselect All')
+        deselect_all_button.clicked.connect(self.deselect_all)
+
+        gating_sub_layout.addWidget(select_all_button)
+        gating_sub_layout.addWidget(deselect_all_button)
+        gating_layout.addLayout(gating_sub_layout)
         self.plot_legend = QListWidget()
-        self.plot_legend.setSelectionMode(QListWidget.MultiSelection)
-        self.plot_legend.itemClicked.connect(self.change_color)
+        self.plot_legend.setSelectionMode(QListWidget.NoSelection)
+        self.plot_legend.itemChanged.connect(self.change_color)
         gating_layout.addWidget(self.plot_legend)
 
-        # X-axis combo box
-        x_axis_label = QLabel("X-axis:")
-        H_layout.addWidget(x_axis_label)
-        self.x_axis_combo = QComboBox()
-        H_layout.addWidget(self.x_axis_combo)
+        # A, B 그룹 생성
+        group_ab = QButtonGroup(self)
+        self.radio_btn_a = QRadioButton('Scatter plot')
+        self.radio_btn_b = QRadioButton('Bar plot')
+        group_ab.addButton(self.radio_btn_a)
+        group_ab.addButton(self.radio_btn_b)
+        self.radio_btn_a.setChecked(True)  # 기본 선택을 A로 설정
         
-        # Y-axis combo box
-        y_axis_label = QLabel("Y-axis:")
-        H_layout.addWidget(y_axis_label)
-        self.y_axis_combo = QComboBox()
-        H_layout.addWidget(self.y_axis_combo)
+        self.radio_btn_a.toggled.connect(self.on_radio_btn_a_toggled)  # A 버튼이 토글될 때마다 호출
+        self.radio_btn_b.toggled.connect(self.on_radio_btn_b_toggled)  # B 버튼이 토글될 때마다 호출
 
-        # Z-axis combo box
-        z_axis_label = QLabel("Z-axis:")
-        H_layout.addWidget(z_axis_label)
-        self.z_axis_combo = QComboBox()
-        H_layout.addWidget(self.z_axis_combo)
+        plot_mode_layout.addWidget(self.radio_btn_a)
+        plot_mode_layout.addWidget(self.radio_btn_b)
+
+        spacer_label = QLabel("")
+        plot_mode_layout.addWidget(spacer_label)
 
         # 3D mode btn
         self.d3_mode_btn = QPushButton("3D mode")
         self.d3_mode_btn.setCheckable(True)
         self.d3_mode_btn.setEnabled(False)
         self.d3_mode_btn.toggled.connect(self.d3_plot)
-        H_layout.addWidget(self.d3_mode_btn)
 
+        self.name_sep_btn = QPushButton("Background")
+        self.name_sep_btn.toggled.connect(self.name_graph)
+        self.name_sep_btn.setCheckable(True)
+
+        plot_mode_layout.addWidget(self.d3_mode_btn)
+        plot_mode_layout.addWidget(self.name_sep_btn)
+
+        layout.addLayout(plot_mode_layout)
+
+        # X-axis combo box
+        x_axis_label = QLabel("X-axis:")
+        H_layout.addWidget(x_axis_label)
+        self.x_axis_combo = QComboBox()
+        self.x_axis_combo.setFixedWidth(100)
+        H_layout.addWidget(self.x_axis_combo)
+
+        spacer_label = QLabel("")
+        H_layout.addWidget(spacer_label)
+        
+        # Y-axis combo box
+        y_axis_label = QLabel("Y-axis:")
+        H_layout.addWidget(y_axis_label)
+        self.y_axis_combo = QComboBox()
+        self.y_axis_combo.setFixedWidth(100)
+        H_layout.addWidget(self.y_axis_combo)
+
+        spacer_label = QLabel("")
+        H_layout.addWidget(spacer_label)
+
+        # Z-axis combo box
+        z_axis_label = QLabel("Z-axis:")
+        H_layout.addWidget(z_axis_label)
+        self.z_axis_combo = QComboBox()
+        self.z_axis_combo.setFixedWidth(100)
+
+        
+        group_z = QButtonGroup(self)
+        self.radio_btn_density = QRadioButton('Density')
+        self.radio_btn_feature = QRadioButton('Feature')
+        self.radio_btn_label = QRadioButton('Name')
+        group_z.addButton(self.radio_btn_density)
+        group_z.addButton(self.radio_btn_feature)
+        group_z.addButton(self.radio_btn_label)
+        self.radio_btn_density.setChecked(True)  # 기본 선택을 A로 설정
+        self.z_axis_combo.setEnabled(False)
+        self.radio_btn_density.toggled.connect(self.on_radio_btn_density_toggled)  # A 버튼이 토글될 때마다 호출
+        self.radio_btn_feature.toggled.connect(self.on_radio_btn_feature_toggled)  # B 버튼이 토글될 때마다 호출
+        self.radio_btn_label.toggled.connect(self.on_radio_btn_label_toggled)  # C 버튼이 토글될 때마다 호출
+        H_layout.addWidget(self.radio_btn_density)
+        H_layout.addWidget(self.radio_btn_feature)
+        H_layout.addWidget(self.z_axis_combo)
+        H_layout.addWidget(self.radio_btn_label)
+        
         layout.addLayout(H_layout)
-        self.mode_btn = QPushButton("Gating mode")
-        self.mode_btn.setCheckable(True)
-        self.mode_btn.toggled.connect(self.on_btn_toggled)
         self.gating_btn = QPushButton("Gating")
         self.gating_btn.clicked.connect(self.gating_data)
         self.save_btn = QPushButton("Save")
         self.save_btn.clicked.connect(self.save_data)
-        self.name_sep_btn = QPushButton("Name dist")
-        self.name_sep_btn.toggled.connect(self.name_graph)
-        self.name_sep_btn.setCheckable(True)
+        
         toolbar = NavigationToolbar(self.canvas)
         H2_layout.addWidget(toolbar)
         H2_layout.addLayout(btn_layout)
-        btn_layout.addWidget(self.mode_btn,0,0)
+        
         btn_layout.addWidget(self.gating_btn,0,1)
-        btn_layout.addWidget(self.save_btn,1,0)
-        btn_layout.addWidget(self.name_sep_btn,1,1)
+        btn_layout.addWidget(self.save_btn,0,2)
+        
         layout.addLayout(H2_layout)
 
         layout.addWidget(self.canvas)
-        self.x_axis_combo.addItems(self.data.columns[:])
-        self.y_axis_combo.addItems(self.data.columns[:])
-        self.z_axis_combo.addItem('None')
-        self.z_axis_combo.addItems(self.data.columns[:])
+        for i in self.data.columns:
+            if not(self.data[i].dtype == 'object' or self.data[i].dtype == 'int'):
+                self.x_axis_combo.addItem(i)
+                self.y_axis_combo.addItem(i)
+                self.z_axis_combo.addItem(i)
         
-        self.plot_type_check()
+        self.plot_manual_change()
         
-        self.x_axis_combo.currentIndexChanged.connect(self.plot_type_check)
-        self.y_axis_combo.currentIndexChanged.connect(self.plot_type_check)
-        self.z_axis_combo.currentIndexChanged.connect(self.plot_type_check)
+        self.x_axis_combo.currentIndexChanged.connect(self.plot_manual_change)
+        self.y_axis_combo.currentIndexChanged.connect(self.plot_manual_change)
+        self.z_axis_combo.currentIndexChanged.connect(self.plot_manual_change)
 
         final_layout.addLayout(layout,3.5)
         final_layout.addLayout(gating_layout,1)
     
-    def plot_type_check(self):
-        x_column = self.x_axis_combo.currentText()
-        y_column = self.y_axis_combo.currentText()
-
-        self.x_data = self.data[x_column]
-        self.y_data = self.data[y_column]
-
-        # 데이터 타입 확인
-        x_dtype = self.x_data.dtype
-        y_dtype = self.y_data.dtype
-
-        # case 둘중 하나라도 문자형
-        if x_dtype == 'object' or y_dtype == 'object':
-            self.bar_plot()
-        else:
-            self.plot_manual_change()
-        
-    def bar_plot(self):
-        self.fig.clear()
-        self.plot_legend.clear()
-        self.d3_mode_btn.setChecked(False)
-        self.d3_mode_btn.setEnabled(False)
-        self.mode_btn.setEnabled(False)
-        self.gating_btn.setEnabled(False)
-        self.save_btn.setEnabled(False)
-        self.name_sep_btn.setEnabled(False)
-        self.ax = self.fig.add_subplot(1, 1, 1)
+    def on_radio_btn_a_toggled(self, checked):
+        if checked:
+            if self.radio_btn_density.isChecked():
+                self.on_radio_btn_density_toggled(True)
+            elif self.radio_btn_feature.isChecked():
+                self.on_radio_btn_feature_toggled(True)
+            else:
+                self.on_radio_btn_label_toggled(True)
+            self.radio_btn_density.setEnabled(True)
+            self.radio_btn_feature.setEnabled(True)
+            self.radio_btn_label.setEnabled(True)
+            self.x_axis_combo.setEnabled(True)
+            self.y_axis_combo.setEnabled(True)
             
-        if self.x_data.dtype == 'object':
-            count = self.x_data.value_counts()
+
+    def on_radio_btn_b_toggled(self, checked):
+        if checked:
+            self.fig.clear()
+            self.plot_legend.clear()   
+            self.ax = self.fig.add_subplot(1, 1, 1)
+
+            count = self.data['Name'].value_counts()
             values = count.values
             names = count.index
             cmap = plt.cm.get_cmap('tab20', len(values))  # tab20 colormap을 사용하거나 다른 colormap을 선택할 수 있음
             name_color_map = ListedColormap(cmap(range(len(values))))
             legend_color_map = [to_hex(cmap(i)) for i in range(len(values))]  # 색상을 RGB로 변환
+            self.selected_list = []
             for i in range(len(values)):
                 self.ax.bar(names[i], values[i],color = name_color_map(i))
                 item_widget = QListWidgetItem()
                 item_widget.setText(str(names[i]))  # 항목의 텍스트 설정
                 item_widget.setBackground(QtGui.QColor(legend_color_map[i]))  # 항목의 배경색을 색상으로 설정
+                item_widget.setCheckState(Qt.Unchecked)
+                item_widget.setFlags(item_widget.flags() | Qt.ItemIsUserCheckable)  # Ensure item is checkable
                 self.plot_legend.addItem(item_widget)
+                
             self.ax.set_xlabel(self.x_axis_combo.currentText())
             self.ax.set_ylabel('Count')
-        else:
-            count = self.y_data.value_counts()
-            values = count.values
-            names = count.index
-            cmap = plt.cm.get_cmap('tab20', len(values))  # tab20 colormap을 사용하거나 다른 colormap을 선택할 수 있음
-            name_color_map = ListedColormap(cmap(range(len(values))))
-            legend_color_map = [to_hex(cmap(i)) for i in range(len(values))]  # 색상을 RGB로 변환
-            for i in range(len(values)):
-                self.ax.barh(names[i], values[i],color = name_color_map(i))
-                item_widget = QListWidgetItem()
-                item_widget.setText(str(names[i]))  # 항목의 텍스트 설정
-                item_widget.setBackground(QtGui.QColor(legend_color_map[i]))  # 항목의 배경색을 색상으로 설정
-                self.plot_legend.addItem(item_widget)
-            self.ax.set_ylabel(self.y_axis_combo.currentText())
-            self.ax.set_xlabel('Count')
-        # self.fig.tight_layout()
-        self.ax.set_title('Bar plot')
-        self.canvas.draw()
-        
+            self.ax.set_xticks(range(len(names)))
+            self.ax.set_xticklabels(names, rotation=45, ha='right')
+
+            self.ax.set_title('Bar plot')
+            self.canvas.draw()
+            self.rs.extents = (0, 0, 0, 0)
+            self.x_axis_combo.setEnabled(False)
+            self.y_axis_combo.setEnabled(False)
+            self.z_axis_combo.setEnabled(False)
+            self.radio_btn_density.setEnabled(False)
+            self.radio_btn_feature.setEnabled(False)
+            self.radio_btn_label.setEnabled(False)
+            self.d3_mode_btn.setChecked(False)
+            self.d3_mode_btn.setEnabled(False)
+            self.gating_btn.setEnabled(False)
+            self.save_btn.setEnabled(False)
+            self.name_sep_btn.setEnabled(False)
+    
+    def on_radio_btn_density_toggled(self, checked):
+        if checked:
+            self.z_axis_combo.setEnabled(False)
+            self.plot_manual_change()
+    def on_radio_btn_feature_toggled(self, checked):
+        if checked:
+            self.z_axis_combo.setEnabled(True)
+            self.plot_manual_change()
+    def on_radio_btn_label_toggled(self, checked):
+        if checked:
+            self.z_axis_combo.setEnabled(False)
+            self.plot_manual_change()
+
     def plot_manual_change(self): # manual combo box 값 변화시 실행
         self.fig.clear()
         self.plot_legend.clear()
         self.d3_mode_btn.setChecked(False)
         self.d3_mode_btn.setEnabled(False)
-        self.mode_btn.setEnabled(True)
         self.gating_btn.setEnabled(True)
         self.save_btn.setEnabled(True)
         self.name_sep_btn.setEnabled(True)
         x_column = self.x_axis_combo.currentText()
         y_column = self.y_axis_combo.currentText()
-        z_column = self.z_axis_combo.currentText()
-        if z_column == 'None':
+
+        self.x_data = self.data[x_column]
+        self.y_data = self.data[y_column]
+        if self.radio_btn_density.isChecked():
             cmap = copy.copy(cm.get_cmap("jet"))
             cmap.set_under(alpha=0)
             self.ax = self.fig.add_subplot(1, 1, 1, projection='scatter_density')
@@ -191,42 +261,46 @@ class ManualGraph(QWidget):
                                         norm=LogNorm(vmin=0.5, vmax=self.x_data.size),
                                         dpi=36, downres_factor=2)
             self.fig.colorbar(density, label='Number of points per pixel')
-        else:
+        elif self.radio_btn_feature.isChecked():
+            z_column = self.z_axis_combo.currentText()
             self.z_data = self.data[z_column]
             self.ax = self.fig.add_subplot(1, 1, 1)
-            if self.z_data.dtype == 'object':
-                tmp_data = pd.read_csv(self.csv_name)
-                self.data['Name'] = tmp_data.loc[self.data.index,'Name']
-                self.z_data = self.data[z_column]
-                unique_names = self.z_data.unique()
-                cmap = plt.cm.get_cmap('tab20', len(unique_names))  # tab20 colormap을 사용하거나 다른 colormap을 선택할 수 있음
-                name_color_map = ListedColormap(cmap(range(len(unique_names))))
-                legend_color_map = [to_hex(cmap(i)) for i in range(len(unique_names))]  # 색상을 RGB로 변환
-                
-                for i, name in enumerate(unique_names):
-                    mask = (self.data[z_column] == name)
-                    self.ax.scatter(self.x_data[mask], self.y_data[mask], label=name, color=name_color_map(i),alpha=0.5)
-                    item_widget = QListWidgetItem()
-                    item_widget.setText(str(name))  # 항목의 텍스트 설정
-                    item_widget.setBackground(QtGui.QColor(legend_color_map[i]))  # 항목의 배경색을 색상으로 설정
-                    self.plot_legend.addItem(item_widget)
-                
-            else:
-                scatter = self.ax.scatter(self.x_data, self.y_data,c=self.z_data,cmap='viridis',alpha=0.5)
-                self.fig.colorbar(scatter, label= f'value of {z_column}')
-                self.d3_mode_btn.setEnabled(True)
+            
+            scatter = self.ax.scatter(self.x_data, self.y_data,c=self.z_data,cmap='viridis',alpha=0.5)
+            self.fig.colorbar(scatter, label= f'value of {z_column}')
+            self.d3_mode_btn.setEnabled(True)
+        else:
+            self.ax = self.fig.add_subplot(1, 1, 1)
+            tmp_data = pd.read_csv(self.csv_name)
+            self.data['Name'] = tmp_data.loc[self.data.index,'Name']
+            self.z_data = self.data['Name']
+            unique_names = self.z_data.unique()
+            cmap = plt.cm.get_cmap('tab20', len(unique_names))  # tab20 colormap을 사용하거나 다른 colormap을 선택할 수 있음
+            name_color_map = ListedColormap(cmap(range(len(unique_names))))
+            legend_color_map = [to_hex(cmap(i)) for i in range(len(unique_names))]  # 색상을 RGB로 변환
+            self.selected_list = []
+            for i, name in enumerate(unique_names):
+                mask = (self.z_data == name)
+                self.ax.scatter(self.x_data[mask], self.y_data[mask], label=name, color=name_color_map(i),alpha=0.5)
+                item_widget = QListWidgetItem()
+                item_widget.setText(str(name))  # 항목의 텍스트 설정
+                item_widget.setBackground(QtGui.QColor(legend_color_map[i]))  # 항목의 배경색을 색상으로 설정
+                item_widget.setCheckState(Qt.Unchecked)
+                item_widget.setFlags(item_widget.flags() | Qt.ItemIsUserCheckable)
+                self.plot_legend.addItem(item_widget)
         self.ax.set_xlabel(x_column)
         self.ax.set_ylabel(y_column)
         self.ax.set_title(f' {x_column} : {y_column}')
         self.ax.set_xlim(min(self.x_data),max(self.x_data))
         self.ax.set_ylim(min(self.y_data),max(self.y_data))
         self.rs = RectangleSelector(self.ax, self.on_select, useblit=True,
-                                    button=[1], minspanx=5, minspany=5, spancoords='pixels',
+                                    button=[3], minspanx=5, minspany=5, spancoords='pixels',
                                     interactive=True)
-        if self.mode_btn.isChecked():
-            self.rs.set_active(True)
-        else:
+        if self.d3_mode_btn.isChecked() or self.radio_btn_b.isChecked() or self.name_sep_btn.isChecked():
             self.rs.set_active(False)
+        else:
+            self.rs.set_active(True)
+        
         if self.name_sep_btn.isChecked():
             self.name_sep_btn.setChecked(False)
         
@@ -234,7 +308,7 @@ class ManualGraph(QWidget):
 
     def d3_plot(self):
         if self.d3_mode_btn.isChecked():
-            self.mode_btn.setEnabled(False)
+            self.rs.set_active(False)
             self.gating_btn.setEnabled(False)
             self.save_btn.setEnabled(False)
             self.name_sep_btn.setEnabled(False)
@@ -256,7 +330,6 @@ class ManualGraph(QWidget):
             self.ax.set_zlim(min(self.z_data),max(self.z_data))
             self.canvas.draw()
         else:
-            self.mode_btn.setEnabled(True)
             self.gating_btn.setEnabled(True)
             self.save_btn.setEnabled(True)
             self.name_sep_btn.setEnabled(True)
@@ -300,42 +373,8 @@ class ManualGraph(QWidget):
         self.count = self.fig.text(0.7,0.95, "Gating percent: " + percentage, ha='left', va='top', color='red')
         plt.draw()
     
-    def on_btn_toggled(self, checked):
-        if checked:
-            # 버튼이 눌러져 있는 상태
-            #self.mode_btn.setStyleSheet("background-color: lightblack;")
-            self.rs.set_active(True)
-        else:
-            # 버튼이 떼어져 있는 상태
-            #self.mode_btn.setStyleSheet("")
-            self.rs.set_active(False)
-            self.rs.extents = (0, 0, 0, 0)
-            if self.count:
-                self.count.set_visible(False)
-                plt.draw()
-            self.select_data = None
-    
-    def save_data(self):
-        choice_box = QMessageBox()
-        choice_box.setWindowTitle("Choice Range")
-        choice_box.setText("Choice Full Range or Gating Range")
-        full_range_button = choice_box.addButton("Full Range", QMessageBox.AcceptRole)
-        gating_range_button = choice_box.addButton("Gating Range", QMessageBox.RejectRole)
-
-        choice_box.exec()
-
-        if choice_box.clickedButton() == full_range_button:
-            self.full_range()
-        elif choice_box.clickedButton() == gating_range_button:
-            if self.select_data is None:
-                print("No select data")
-                return
-            self.gating_range()
-        else:
-            print("cancel")
         
-
-    def full_range(self):
+    def save_data(self):
         choice_csv = QMessageBox()
         choice_csv.setWindowTitle("Choice Save Location")
         choice_csv.setText("New CSV or Update CSV")
@@ -362,38 +401,10 @@ class ManualGraph(QWidget):
                                             (self.data[self.y_axis_combo.currentText()] >= y_min) & (self.data[self.y_axis_combo.currentText()] <= y_max)),'Name'] = name
                 tmp_data.loc[self.data.index,'Name'] = self.data['Name']
                 tmp_data.to_csv(self.csv_name, index=False)
-            self.plot_type_check()
+                self.plot_manual_change()
         else:
             print("cancel")
 
-    def gating_range(self):
-        choice_csv = QMessageBox()
-        choice_csv.setWindowTitle("Choice Save Location")
-        choice_csv.setText("New CSV or Update CSV")
-        new_button = choice_csv.addButton("New CSV", QMessageBox.AcceptRole)
-        update_button = choice_csv.addButton("Update CSV", QMessageBox.RejectRole)
-        choice_csv.exec()
-
-        
-        if choice_csv.clickedButton() == new_button:
-            name = self.open_df()
-            if name is not None:
-                tmp_data = pd.read_csv(self.csv_name)
-                tmp_data.loc[((self.data[self.x_axis_combo.currentText()] >= self.x1) & (self.data[self.x_axis_combo.currentText()] <= self.x2) & 
-                                            (self.data[self.y_axis_combo.currentText()] >= self.y1) & (self.data[self.y_axis_combo.currentText()] <= self.y2)),'Name'] = name
-                tmp_data.to_csv(self.get_unique_filename(), index=False)
-        elif choice_csv.clickedButton() == update_button:
-            name = self.open_df()
-            if name is not None:
-                tmp_data = pd.read_csv(self.csv_name)
-                self.data.loc[((self.data[self.x_axis_combo.currentText()] >= self.x1) & (self.data[self.x_axis_combo.currentText()] <= self.x2) & 
-                                            (self.data[self.y_axis_combo.currentText()] >= self.y1) & (self.data[self.y_axis_combo.currentText()] <= self.y2)),'Name'] = name
-                tmp_data.loc[self.data.index,'Name'] = self.data['Name']
-                tmp_data.to_csv(self.csv_name, index=False)
-            self.plot_type_check()
-        else:
-            print("cancel")
-        
     def get_unique_filename(self):
         filename, file_extension = os.path.splitext(self.csv_name)
         index = 1
@@ -412,63 +423,94 @@ class ManualGraph(QWidget):
         
     def name_graph(self):
         self.plot_legend.clear()
-        if self.name_sep_btn.isChecked():
-            self.mode_btn.setEnabled(False)
-            self.gating_btn.setEnabled(False)
-            self.save_btn.setEnabled(False)
-
-            self.fig.clear()
-            #self.data = pd.read_csv(self.csv_name)
-            tmp_data = pd.read_csv(self.csv_name)
-            unique_names = tmp_data['Name'].unique()
-            x_column = self.x_axis_combo.currentText()
-            y_column = self.y_axis_combo.currentText()
-            x_data = tmp_data[x_column]
-            y_data = tmp_data[y_column]
-            self.ax = self.fig.add_subplot(1, 1, 1)
-            self.ax.set_xlabel(x_column)
-            self.ax.set_ylabel(y_column)
-            self.ax.set_title(f' {x_column} : {y_column}')
-            cmap = plt.cm.get_cmap('tab20', len(unique_names))  # tab20 colormap을 사용하거나 다른 colormap을 선택할 수 있음
-            name_color_map = ListedColormap(cmap(range(len(unique_names))))
-            legend_color_map = [to_hex(cmap(i)) for i in range(len(unique_names))]  # 색상을 RGB로 변환
-
-            for i, name in enumerate(unique_names):
-                mask = (tmp_data['Name'] == name)
-                self.ax.scatter(x_data[mask], y_data[mask], label=name, color=name_color_map(i),alpha=0.5)
-                item_widget = QListWidgetItem()
-                item_widget.setText(str(name))  # 항목의 텍스트 설정
-                item_widget.setBackground(QtGui.QColor(legend_color_map[i]))  # 항목의 배경색을 색상으로 설정
-                self.plot_legend.addItem(item_widget)
-            self.ax.set_xlim(min(x_data),max(x_data))
-            self.ax.set_ylim(min(y_data),max(y_data))
-    
-            self.rs.extents = (0, 0, 0, 0)
-            self.canvas.draw()
-        else:
-            self.mode_btn.setEnabled(True)
+        
+        if not self.name_sep_btn.isChecked():
             self.gating_btn.setEnabled(True)
             self.save_btn.setEnabled(True)
             self.plot_manual_change()
+            return
         
-    def change_color(self):
+        self.gating_btn.setEnabled(False)
+        self.save_btn.setEnabled(False)
+
         self.fig.clear()
-        selected_items = self.plot_legend.selectedItems()
-        selected_list = [item.text() for item in selected_items]
+
+        # Read data
+        tmp_data = pd.read_csv(self.csv_name)
+        unique_names_tmp = tmp_data['Name'].unique()
         x_column = self.x_axis_combo.currentText()
         y_column = self.y_axis_combo.currentText()
+        x_data = tmp_data[x_column]
+        y_data = tmp_data[y_column]
+        
+        # Set up plot
         self.ax = self.fig.add_subplot(1, 1, 1)
+        self.ax.set_xlabel(x_column)
+        self.ax.set_ylabel(y_column)
+        self.ax.set_title(f'Back Ground of {x_column} : {y_column}')
 
-        if self.x_data.dtype == 'object':
-            count = self.x_data.value_counts()
+        # Create color map
+        cmap = plt.cm.get_cmap('tab20', len(unique_names_tmp))
+        colors = [to_hex(cmap(i)) for i in range(len(unique_names_tmp))]
+
+        # Create scatter plot and legend items
+        self.selected_list = []
+        
+        for i, name in enumerate(unique_names_tmp):
+            mask = tmp_data['Name'] == name
+            item_widget = QListWidgetItem(name)
+            item_widget.setBackground(QtGui.QColor(colors[i]))
+            item_widget.setCheckState(Qt.Unchecked)
+            item_widget.setFlags(item_widget.flags() | Qt.ItemIsUserCheckable)
+            self.plot_legend.addItem(item_widget)
+            
+            # Check if data points are within the range
+            x_in_range = (x_data[mask] >= self.x_data.min()) & (x_data[mask] <= self.x_data.max())
+            y_in_range = (y_data[mask] >= self.y_data.min()) & (y_data[mask] <= self.y_data.max())
+            in_range = x_in_range & y_in_range
+            
+            if in_range.any():
+                self.ax.scatter(x_data[mask][in_range], y_data[mask][in_range], label=name, color=colors[i])
+            else:
+                self.ax.scatter(x_data[mask], y_data[mask], color='lightgray', alpha=0.1)
+
+
+            handles, labels = self.ax.get_legend_handles_labels()
+            self.ax.legend(handles, labels)
+
+        # Set plot limits
+        self.ax.set_xlim(x_data.min(), x_data.max())
+        self.ax.set_ylim(y_data.min(), y_data.max())
+
+        # Reset rectangle selector extents
+        self.rs.extents = (0, 0, 0, 0)
+        self.canvas.draw()
+        
+    def change_color(self, item=None):
+        self.fig.clear()
+
+        if item is not None:
+            if item.checkState() == Qt.Checked:
+                if item.text() not in self.selected_list:
+                    self.selected_list.append(item.text())
+            else:
+                if item.text() in self.selected_list:
+                    self.selected_list.remove(item.text())
+
+        self.ax = self.fig.add_subplot(1, 1, 1)
+        x_column = self.x_axis_combo.currentText()
+        y_column = self.y_axis_combo.currentText()
+
+        if self.radio_btn_b.isChecked():
+            count = self.data['Name'].value_counts()
             values = count.values
             names = count.index
             cmap = plt.cm.get_cmap('tab20', len(values))  # tab20 colormap을 사용하거나 다른 colormap을 선택할 수 있음
             name_color_map = ListedColormap(cmap(range(len(values))))
             for i in range(len(values)):
-                if len(selected_list) == 0:
+                if len(self.selected_list) == 0:
                     self.ax.bar(names[i], values[i],color = name_color_map(i))
-                elif names[i] in selected_list:
+                elif names[i] in self.selected_list:
                     self.ax.bar(names[i], values[i],color = name_color_map(i), label = names[i])
                 else:
                     self.ax.bar(names[i], values[i],color = 'lightgray')
@@ -477,25 +519,8 @@ class ManualGraph(QWidget):
             self.ax.set_xlabel(self.x_axis_combo.currentText())
             self.ax.set_ylabel('Count')
             self.ax.set_title('Bar plot')
-
-        elif self.y_data.dtype == 'object':
-            count = self.y_data.value_counts()
-            values = count.values
-            names = count.index
-            cmap = plt.cm.get_cmap('tab20', len(values))  # tab20 colormap을 사용하거나 다른 colormap을 선택할 수 있음
-            name_color_map = ListedColormap(cmap(range(len(values))))
-            for i in range(len(values)):
-                if len(selected_list) == 0:
-                    self.ax.barh(names[i], values[i],color = name_color_map(i))
-                elif names[i] in selected_list:
-                    self.ax.barh(names[i], values[i],color = name_color_map(i),label = names[i])
-                else:
-                    self.ax.barh(names[i], values[i],color = 'lightgray')
-            handles, labels = self.ax.get_legend_handles_labels()
-            self.ax.legend(handles, labels)
-            self.ax.set_ylabel(self.y_axis_combo.currentText())
-            self.ax.set_xlabel('Count')
-            self.ax.set_title('Bar plot')
+            self.ax.set_xticks(range(len(names)))
+            self.ax.set_xticklabels(names, rotation=45, ha='right')
 
         elif self.name_sep_btn.isChecked():
             tmp_data = pd.read_csv(self.csv_name)
@@ -506,34 +531,41 @@ class ManualGraph(QWidget):
             name_color_map = ListedColormap(cmap(range(len(unique_names))))
             for i, name in enumerate(unique_names):
                 mask = tmp_data['Name'] == name # 'Name 버전'
-                if len(selected_list) == 0:
-                    self.ax.scatter(x_data[mask], y_data[mask], color=name_color_map(i),alpha=0.5)
-                elif name in selected_list:
+
+                # Check if data points are within the range
+                x_in_range = (x_data[mask] >= self.x_data.min()) & (x_data[mask] <= self.x_data.max())
+                y_in_range = (y_data[mask] >= self.y_data.min()) & (y_data[mask] <= self.y_data.max())
+                in_range = x_in_range & y_in_range
+
+                if name in self.selected_list:
                     self.ax.scatter(x_data[mask], y_data[mask], label=name, color=name_color_map(i))
+                elif in_range.any():
+                    self.ax.scatter(x_data[mask][in_range], y_data[mask][in_range], label=name, color=name_color_map(i))
                 else:
                     self.ax.scatter(x_data[mask], y_data[mask], color='lightgray',alpha=0.1)
+
             handles, labels = self.ax.get_legend_handles_labels()
             self.ax.legend(handles, labels)
             self.ax.set_xlim(min(x_data),max(x_data))
             self.ax.set_ylim(min(y_data),max(y_data))
             self.ax.set_xlabel(x_column)
             self.ax.set_ylabel(y_column)
-            self.ax.set_title(f' {x_column} : {y_column}')
+            self.ax.set_title(f'Back Ground of {x_column} : {y_column}')
 
         else:
-            z_column = self.z_axis_combo.currentText() #zcolumn 버전
-            self.z_data = self.data[z_column] #zcolumn 버전
+            self.z_data = self.data['Name'] #zcolumn 버전
             unique_names = self.z_data.unique() #zcolumn 버전
             cmap = plt.cm.get_cmap('tab20', len(unique_names))  # tab20 colormap을 사용하거나 다른 colormap을 선택할 수 있음
             name_color_map = ListedColormap(cmap(range(len(unique_names))))
             for i, name in enumerate(unique_names):
-                mask = (self.data[z_column] == name) #zcolumn 버전
-                if len(selected_list) == 0:
+                mask = (self.z_data == name) #zcolumn 버전
+                if len(self.selected_list) == 0:
                     self.ax.scatter(self.x_data[mask], self.y_data[mask], color=name_color_map(i),alpha=0.5)
-                elif name in selected_list:
+                elif name in self.selected_list:
                     self.ax.scatter(self.x_data[mask], self.y_data[mask], label=name, color=name_color_map(i))
                 else:
                     self.ax.scatter(self.x_data[mask], self.y_data[mask], color='lightgray',alpha=0.1)
+            
             handles, labels = self.ax.get_legend_handles_labels()
             self.ax.legend(handles, labels)
             self.ax.set_xlim(min(self.x_data),max(self.x_data))
@@ -541,5 +573,34 @@ class ManualGraph(QWidget):
             self.ax.set_xlabel(x_column)
             self.ax.set_ylabel(y_column)
             self.ax.set_title(f' {x_column} : {y_column}')
+
+            self.rs = RectangleSelector(self.ax, self.on_select, useblit=True,
+                                    button=[3], minspanx=5, minspany=5, spancoords='pixels',
+                                    interactive=True)
+            if self.d3_mode_btn.isChecked() or self.radio_btn_b.isChecked() or self.name_sep_btn.isChecked():
+                self.rs.set_active(False)
+            else:
+                self.rs.set_active(True)
+            
         
         self.canvas.draw()
+
+    
+    def select_all(self):
+        self.plot_legend.blockSignals(True)
+        for index in range(self.plot_legend.count()):
+            item = self.plot_legend.item(index)
+            item.setCheckState(Qt.Checked)
+            if item.text() not in self.selected_list:
+                self.selected_list.append(item.text())
+        self.plot_legend.blockSignals(False)
+        self.change_color()
+
+    def deselect_all(self):
+        self.plot_legend.blockSignals(True)
+        self.selected_list = []
+        for index in range(self.plot_legend.count()):
+            item = self.plot_legend.item(index)
+            item.setCheckState(Qt.Unchecked)
+        self.plot_legend.blockSignals(False)
+        self.change_color()

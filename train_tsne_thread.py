@@ -45,12 +45,12 @@ class TrainTSNEThread(QThread):
                 else:
                     tsne_df['Name'] = data['Name']
             else:
-                pca = PCA(0.95)
-                X_pca = pca.fit_transform(data_drop)
+                # pca = PCA(0.95)
+                # X_pca = pca.fit_transform(data_drop)
     
                 n_components = 2
                 model = TSNE(n_components=n_components, random_state=42)
-                tsne_result = model.fit_transform(X_pca[:10000])
+                tsne_result = model.fit_transform(data_drop[:10000])
     
                 tsne_df = pd.DataFrame(data=tsne_result, columns=['tsne1', 'tsne2'])
                 # tsne_df['Name'] = data['Name'] 
@@ -61,10 +61,13 @@ class TrainTSNEThread(QThread):
                         print("Both 'Name' and 'Label' columns are missing in the data.")
                 else:
                     tsne_df['Name'] = data['Name']
-                   
+                
+                if 'Label' in data.columns:
+                    tsne_df.loc[data['Label'] == 0, 'Name'] = 'NA_'
                 tsne_df.to_csv(csv_file_path, index=False)  # t-SNE 결과를 CSV 파일로 저장
             
-            
+            if 'Label' in data.columns:
+                tsne_df.loc[data['Label'] == 0, 'Name'] = 'NA_'
             # update_ui 시그널을 통해 메인 UI에 그래프 업데이트 알림
             self.update_ui.emit(tsne_df, file_name, idx+1)
         

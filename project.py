@@ -53,21 +53,24 @@ class MainView(QMainWindow):
         # cygate 실행
         UI_set.cygate_run.clicked.connect(self.run_cygate)        
         MainView.tab_data = {
-            'color_maps': [],
+            'bars' : [],
             'cell_mappings': [],
-            'figs': [],
             'checkboxes' : [],
-            'legend_checkboxes' : []
-        }
-        MainView.train_tab_data = {
-            'tsne_dfs': [],
+            'cids' : [],
             'colors': [],
             'color_maps': [],
-            'name_counts': [],
+            'figs': [],
+            'name_counts': []
+        }
+        MainView.train_tab_data = {
             'bars': [],
             'cell_mappings': [],
+            'cids' : [],
+            'colors': [],
+            'color_maps': [],
             'figs': [],
-            'cids' : []
+            'name_counts': [],
+            'tsne_dfs': []
         }
         # manual gate
         UI_set.manual_load_btn.clicked.connect(self.load_data)
@@ -120,10 +123,7 @@ class MainView(QMainWindow):
         
         fig, (ax_tsne, ax_hist) = plt.subplots(2, 1, figsize=(8, 10), gridspec_kw={'height_ratios': [2.5, 1]})
         
-        canvas = FigureCanvas(fig)
-        canvas.setParent(self.train_tsne_graph)
-        toolbar = NavigationToolbar(canvas)
-        toolbar.setFixedHeight(30)
+        
         
         cell_mapping = {}
         for name, color in color_map.items():
@@ -140,8 +140,9 @@ class MainView(QMainWindow):
         
         # Create histogram
         name_counts = tsne_df['Name'].value_counts().sort_index()
+        log_counts = np.log10(name_counts+1)  # 자연 로그 변환 
         colors = [color_map[name] for name in name_counts.index]
-        bars = ax_hist.bar(np.arange(len(name_counts)), name_counts, color=colors, alpha=0.7)
+        bars = ax_hist.bar(np.arange(len(name_counts)), log_counts, color=colors, alpha=0.7)
 
 
         ax_hist.set_title('Cell Counts', fontsize=8)
@@ -153,32 +154,46 @@ class MainView(QMainWindow):
         ax_hist.tick_params(axis='x', rotation=90)
 
         for i, count in enumerate(name_counts):
-           ax_hist.text(i, count + 0.5, str(count), ha='center', va='bottom', fontsize=6)
+            log_count = log_counts[i]
+            ax_hist.text(i, log_count + 0.05, f'{count}', ha='center', va='bottom', fontsize=6)
 
 
         # Set x-axis tick labels font size
         ax_hist.tick_params(axis='x', labelsize=6)
-        ax_hist.set_ylim(0, 1.2 * name_counts.max())
+        ax_hist.set_ylim(0, 1.2 * log_counts.max())
 
+        canvas = FigureCanvas(fig)
+        canvas.setParent(self.train_tsne_graph)
+        toolbar = NavigationToolbar(canvas)
+        toolbar.setFixedHeight(30)
+        
         tab_widget = QTabWidget()
         tab_widget.tabCloseRequested.connect(self.close_tab)
 
         tab_idx = self.train_tsne_graph.addTab(tab_widget, file_name)
         
         layout = QVBoxLayout(self.train_tsne_graph.widget(tab_idx))
+        
+        legend_select_layout = QHBoxLayout()
+        legend_select = QCheckBox('Select All')
+        legend_select.setChecked(True)
+        legend_select.stateChanged.connect(self.update_legend_all_train)
+        legend_select_layout.addWidget(legend_select)
+        layout.addLayout(legend_select_layout)
+        
         layout.addWidget(canvas)
         layout.addWidget(toolbar)
 
-        cid = ax_hist.figure.canvas.mpl_connect('button_press_event', self.on_bar_click)          
+        cid = ax_hist.figure.canvas.mpl_connect('button_press_event', self.on_bar_click_train)          
         self.train_tab_data[tab_idx] = {
-            'tsne_dfs': tsne_df,
-            'colors': colors,
-            'color_maps': color_map,
-            'name_counts': name_counts,
             'bars': bars,
             'cell_mappings': cell_mapping,
+            'cids' : cid,
+            'colors': colors,
+            'color_maps': color_map,
             'figs' : fig,
-            'cids' : cid
+            'name_counts': name_counts,
+            'tsne_dfs': tsne_df,
         }
 
         plt.subplots_adjust(hspace=0.7, bottom=0.2)
@@ -211,10 +226,6 @@ class MainView(QMainWindow):
         # print(color_map)
         fig, (ax_tsne, ax_hist) = plt.subplots(2, 1, figsize=(8, 10), gridspec_kw={'height_ratios': [2.5, 1]})
 
-        canvas = FigureCanvas(fig)
-        canvas.setParent(self.test_tsne_graph)
-        toolbar = NavigationToolbar(canvas)
-        toolbar.setFixedHeight(30)
         
         cell_mapping = {}
         grouped_df = tsne_df.groupby(['Name', 'File'])
@@ -223,32 +234,39 @@ class MainView(QMainWindow):
             scatter = ax_tsne.scatter(group['tsne1'], group['tsne2'], marker='o', alpha=0.5, label=cell_name, color=color_map[cell_name], s=3)
             # cell_mapping에 추가합니다.
             cell_mapping[(cell_name, file_number)] = scatter
-
+        # print(cell_mapping)
         ax_tsne.set_title('t-SNE', fontsize=8)
         ax_tsne.grid(True)
        
         # cell count 막대 그래프
         name_counts = tsne_df['Name'].value_counts().sort_index()
+        log_counts = np.log10(name_counts+1)  # 자연 로그 변환 
         colors = [color_map[name] for name in name_counts.index]
         # 막대 바
-        bars = ax_hist.bar(np.arange(len(name_counts)), name_counts, color=colors, alpha=0.7)
+        bars = ax_hist.bar(np.arange(len(name_counts)), log_counts, color=colors, alpha=0.7)
 
         ax_hist.set_title('Cell Counts', fontsize=8)
         ax_hist.set_xticks(np.arange(len(name_counts)))  # x 축 눈금 위치 설정
         ax_hist.set_xticklabels(name_counts.index, rotation=90)  # x 축 눈금 레이블 설정
-
+        
         ax_hist.xaxis.set_tick_params(which='both', labelbottom=True, labeltop=True)
         ax_hist.xaxis.set_tick_params(labelbottom=True, labeltop=False)
         ax_hist.tick_params(axis='x', rotation=90)
 
         for i, count in enumerate(name_counts):
-           ax_hist.text(i, count + 0.5, str(count), ha='center', va='bottom', fontsize=6)
+            log_count = log_counts[i]
+            ax_hist.text(i, log_count + 0.05, f'{count}', ha='center', va='bottom', fontsize=6)
 
 
         # Set x-axis tick labels font size
         ax_hist.tick_params(axis='x', labelsize=6)
-        ax_hist.set_ylim(0, 1.2 * name_counts.max())
-  
+        ax_hist.set_ylim(0, 1.2 * log_counts.max())
+        
+        canvas = FigureCanvas(fig)
+        canvas.setParent(self.test_tsne_graph)
+        toolbar = NavigationToolbar(canvas)
+        toolbar.setFixedHeight(30)
+        
         tab_widget = QTabWidget()
         tab_widget.tabCloseRequested.connect(self.close_tab)
 
@@ -269,32 +287,12 @@ class MainView(QMainWindow):
             
         layout.addLayout(checkbox_layout)
         
-        legend_layout = QGridLayout()
-        legend_checkboxes = {}
-        num_columns = 3
-        row = 0
-        col = 0
-        
-        for name, color in color_map.items():
-            checkbox = QCheckBox(name)
-            checkbox.setChecked(True)  # 초기에 모든 체크박스를 선택 상태로 설정
-            checkbox.stateChanged.connect(lambda state, name=name: self.update_legend(state, name))
-            checkbox.setStyleSheet(f"QCheckBox::indicator {{ background-color: rgb({int(color[0] * 255)}, {int(color[1] * 255)}, {int(color[2] * 255)}); width: 11px; height: 11px; }} QCheckBox {{ font-size: 11px; }}")
-
-            # 현재 수평 레이아웃에 체크박스 추가
-            legend_layout.addWidget(checkbox, row, col)
-            col += 1
-            if col >= num_columns:
-                col = 0
-                row += 1
-            legend_checkboxes[name] = checkbox
-        layout.addLayout(legend_layout)  # 최종 레이아웃을 추가
         
         # 전체 파일, legend를 체크하고 해제하는 거
         legend_select_layout = QHBoxLayout()
         legend_select = QCheckBox('Select All')
         legend_select.setChecked(True)
-        legend_select.stateChanged.connect(self.update_legend_all)
+        legend_select.stateChanged.connect(self.update_legend_all_test)
         legend_select_layout.addWidget(legend_select)
         layout.addLayout(legend_select_layout)
         
@@ -302,68 +300,73 @@ class MainView(QMainWindow):
         layout.addWidget(toolbar)
         
         # 현재 탭 데이터 저장
+        cid = ax_hist.figure.canvas.mpl_connect('button_press_event', self.on_bar_click_test)          
         self.tab_data[tab_idx] = {
-            'color_maps': color_map,
+            'bars' : bars,
             'cell_mappings': cell_mapping,
-            'figs' : fig,
             'checkboxes' : checkboxes,
-            'legend_checkboxes' : legend_checkboxes
+            'cids' : cid,
+            'colors' : colors,
+            'color_maps': color_map,
+            'figs' : fig,
+            'name_counts': name_counts
         }
 
 
         # 서브플롯 간의 간격 및 밑에 여백 조정
         plt.subplots_adjust(hspace=0.6)
+    
+    def update_legend_all_train(self, state):
+        current_tab_index = self.train_tsne_graph.currentIndex()
+        current_tab_data = self.train_tab_data.get(current_tab_index)
         
-    def update_legend_all(self, state):
+        if current_tab_data:            
+            bars = current_tab_data['bars']
+            cell_mapping = current_tab_data['cell_mappings']
+            colors = current_tab_data['colors']
+            color_map = current_tab_data['color_maps']
+            fig = current_tab_data['figs']
+            name_counts = current_tab_data['name_counts']
+            
+            for name, scatter in cell_mapping.items():
+                # scatter 색상 설정
+                new_color = (0.8, 0.8, 0.8, 0.02) if state == 0 else color_map[name]
+                scatter.set_facecolor(new_color)
+                scatter.set_edgecolor(new_color)
+                
+
+                # 해당 이름의 bar 색상 설정
+                for i, bar in enumerate(bars):
+                    if name_counts.index[i] == name:
+                        bar.set_facecolor(new_color)
+                        colors[i] = new_color
+                        
+            fig.canvas.draw_idle()  # 그래프 업데이트
+    
+    def update_legend_all_test(self, state):
         current_tab_index = self.test_tsne_graph.currentIndex()
         current_tab_data = self.tab_data.get(current_tab_index)
         checked = self.get_checked_file_numbers(current_tab_index)
         
         if current_tab_data:            
-            color_map = current_tab_data['color_maps']
+            bars = current_tab_data['bars']
             cell_mapping = current_tab_data['cell_mappings']
+            colors = current_tab_data['colors']
+            color_map = current_tab_data['color_maps']
             fig = current_tab_data['figs']
-            legend_checkboxes = current_tab_data['legend_checkboxes']
+            name_counts = current_tab_data['name_counts']
             for (cell_name, f_number), scatter in cell_mapping.items():
                 if f_number in checked:
-                    if state == 0:
-                        scatter.set_facecolor((0.8,0.8,0.8,0.02))
-                        scatter.set_edgecolor((0.8,0.8,0.8,0.02))
-                        legend_checkboxes[cell_name].setStyleSheet(f"QCheckBox::indicator {{ background-color: rgba({int(color_map[cell_name][0] * 255)}, {int(color_map[cell_name][1] * 255)}, {int(color_map[cell_name][2] * 255)}, 50); width: 11px; height: 11px; }} QCheckBox {{ font-size: 11px; color: rgba(0, 0, 0, 0.5); }}")                        
-                        legend_checkboxes[cell_name].setChecked(False)
-                    else:
-                        scatter.set_facecolor(color_map[cell_name])
-                        scatter.set_edgecolor(color_map[cell_name])    
-                        legend_checkboxes[cell_name].setStyleSheet(f"QCheckBox::indicator {{ background-color: rgb({int(color_map[cell_name][0] * 255)}, {int(color_map[cell_name][1] * 255)}, {int(color_map[cell_name][2] * 255)}); width: 11px; height: 11px; }} QCheckBox {{ font-size: 11px; }}")
-                        legend_checkboxes[cell_name].setChecked(True)
+                    new_color = (0.8, 0.8, 0.8, 0.02) if state == 0 else color_map[cell_name]
+                    scatter.set_facecolor(new_color)
+                    scatter.set_edgecolor(new_color)
 
-                    fig.canvas.draw_idle()  # 그래프 업데이트
-            
-            
-    def update_legend(self, state, name):
-        current_tab_index = self.test_tsne_graph.currentIndex()
-        current_tab_data = self.tab_data.get(current_tab_index)
-        checked = self.get_checked_file_numbers(current_tab_index)
-        
-        if current_tab_data:            
-            color_map = current_tab_data['color_maps']
-            cell_mapping = current_tab_data['cell_mappings']
-            fig = current_tab_data['figs']
-            legend_checkboxes = current_tab_data['legend_checkboxes']
-            for (cell_name, f_number), scatter in cell_mapping.items():
-                if f_number in checked and cell_name == name:                    
-                    if state == 0:
-                        scatter.set_facecolor((0.8,0.8,0.8,0.02))
-                        scatter.set_edgecolor((0.8,0.8,0.8,0.02))
-                        legend_checkboxes[name].setStyleSheet(f"QCheckBox::indicator {{ background-color: rgba({int(color_map[name][0] * 255)}, {int(color_map[name][1] * 255)}, {int(color_map[name][2] * 255)}, 50); width: 11px; height: 11px; }} QCheckBox {{ font-size: 11px; color: rgba(0, 0, 0, 0.5); }}")                        
-                        legend_checkboxes[cell_name].setChecked(False)
-
-                    else:
-                        scatter.set_facecolor(color_map[cell_name])
-                        scatter.set_edgecolor(color_map[cell_name])    
-                        legend_checkboxes[name].setStyleSheet(f"QCheckBox::indicator {{ background-color: rgb({int(color_map[name][0] * 255)}, {int(color_map[name][1] * 255)}, {int(color_map[name][2] * 255)}); width: 11px; height: 11px; }} QCheckBox {{ font-size: 11px; }}")
-                        legend_checkboxes[cell_name].setChecked(True)
-
+                    # 해당 이름의 bar 색상 설정
+                    for i, bar in enumerate(bars):
+                        if name_counts.index[i] == cell_name:
+                            bar.set_facecolor(new_color)
+                            colors[i] = new_color
+    
                     fig.canvas.draw_idle()  # 그래프 업데이트
 
 
@@ -373,36 +376,41 @@ class MainView(QMainWindow):
         current_tab_data = self.tab_data.get(current_tab_index)
         
         if current_tab_data:
-            color_map = current_tab_data['color_maps']
+            bars = current_tab_data['bars']
             cell_mapping = current_tab_data['cell_mappings']
+            colors = current_tab_data['colors']
+            color_map = current_tab_data['color_maps']
             fig = current_tab_data['figs']
-            legend_checkboxes = current_tab_data['legend_checkboxes']
+            name_counts = current_tab_data['name_counts']
+
             # 파일 번호에 해당하는 셀들만 처리
             for (cell_name, f_number), scatter in cell_mapping.items():
                 if f_number == file_number:
                     if state == 0:
                         scatter.set_facecolor((0.8,0.8,0.8,0.02))
                         scatter.set_edgecolor((0.8,0.8,0.8,0.02))
-                        # legend_checkboxes[cell_name].setStyleSheet(f"QCheckBox::indicator {{ background-color: rgba({int(color_map[cell_name][0] * 255)}, {int(color_map[cell_name][1] * 255)}, {int(color_map[cell_name][2] * 255)}, 50); width: 11px; height: 11px; }} QCheckBox {{ font-size: 11px; color: rgba(0, 0, 0, 0.5); }}")                        
-                        # legend_checkboxes[cell_name].setChecked(False)
                     else:
                         scatter.set_facecolor(color_map[cell_name])
                         scatter.set_edgecolor(color_map[cell_name])
-                        legend_checkboxes[cell_name].setStyleSheet(f"QCheckBox::indicator {{ background-color: rgb({int(color_map[cell_name][0] * 255)}, {int(color_map[cell_name][1] * 255)}, {int(color_map[cell_name][2] * 255)}); width: 11px; height: 11px; }} QCheckBox {{ font-size: 11px; }}")
-                        legend_checkboxes[cell_name].setChecked(True)
+                        # 각 cell_name에 해당하는 bar 색상도 업데이트
+                        for i, bar in enumerate(bars):
+                            if colors[i] == (0.8,0.8,0.8,0.02) and name_counts.index[i] == cell_name:
+                                bar.set_facecolor(color_map[cell_name])
+                                colors[i] = color_map[cell_name]
+
                     fig.canvas.draw_idle()
 
 
-    def on_bar_click(self, event):
+    def on_bar_click_train(self, event):
         current_tab_index = self.train_tsne_graph.currentIndex()
         current_tab_data = self.train_tab_data.get(current_tab_index)
         if current_tab_data:
-            colors = current_tab_data['colors']
-            color_map = current_tab_data['color_maps']
-            name_counts = current_tab_data['name_counts']
             bars = current_tab_data['bars']
             cell_mapping = current_tab_data['cell_mappings']
+            colors = current_tab_data['colors']
+            color_map = current_tab_data['color_maps']
             fig = current_tab_data['figs']
+            name_counts = current_tab_data['name_counts']
             if event.inaxes:
                 for i, bar in enumerate(bars):
                     if bar.contains(event)[0]:
@@ -412,9 +420,42 @@ class MainView(QMainWindow):
                         else:
                             colors[i] = color_map[cell_name]
                         bar.set_facecolor(colors[i])
-                        bar.set_edgecolor(colors[i])
+
                         cell_mapping[cell_name].set_facecolor(colors[i])
                         cell_mapping[cell_name].set_edgecolor(colors[i])
+                        fig.canvas.draw_idle()
+                        break
+
+    def on_bar_click_test(self, event):
+        current_tab_index = self.test_tsne_graph.currentIndex()
+        current_tab_data = self.tab_data.get(current_tab_index)
+        checked = self.get_checked_file_numbers(current_tab_index)
+
+        if current_tab_data:
+            bars = current_tab_data['bars']
+            cell_mapping = current_tab_data['cell_mappings']
+            colors = current_tab_data['colors']
+            color_map = current_tab_data['color_maps']
+            fig = current_tab_data['figs']
+            name_counts = current_tab_data['name_counts']
+            if event.inaxes:
+                for i, bar in enumerate(bars):
+                    if bar.contains(event)[0]:
+                        cell_name = name_counts.index[i]
+                        
+                        if colors[i] == color_map[cell_name]: # 클릭한 막대 찾음 - 색이 있으면
+                            new_color = (0.8,0.8,0.8,0.02)
+                        else:                                # 회색이면
+                            new_color = color_map[cell_name] # 색상 변경. 원래<->회색
+                     
+                        colors[i] = new_color
+                        bar.set_facecolor(new_color)
+                        
+                        for (c_name, f_number), scatter in cell_mapping.items():
+                            if f_number in checked and c_name == cell_name:  
+                                scatter.set_facecolor(new_color)
+                                scatter.set_edgecolor(new_color)                  
+    
                         fig.canvas.draw_idle()
                         break
                                                    
@@ -755,11 +796,16 @@ class MainView(QMainWindow):
     
     def conversion_data(self, df):
         if 'Name' not in df.columns:
-            df['Name'] = 'NA_'
+            if 'Label' in df.columns:
+                df['Name'] = df['Label'].apply(lambda x: f'Label_{x}')
+            else:
+                df['Name'] = 'NA_'
         df.loc[df['Label'] == 0, 'Name'] = 'NA_'
+        
         for column in df.columns:
             # 'name' 또는 'label'이 열 이름에 포함되어 있지 않은 경우에만 값을 변경합니다.
             if 'Name' not in column and 'Label' not in column:
+                df[column] = np.where(df[column] < 0, 0, df[column])
                 df[column] = np.arcsinh(df[column] / 5)
         return df
     

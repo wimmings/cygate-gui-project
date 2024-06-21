@@ -76,33 +76,28 @@ class TestTSNEThread(QThread):
             tsne_df['Name'] = names
             tsne_df['File'] = file_names
         else:
-            pca = PCA(0.95)
-            X_pca = pca.fit_transform(merged_df)
+            # pca = PCA(0.95)
+            # X_pca = pca.fit_transform(merged_df)
 
             n_components = 2
             model = TSNE(n_components=n_components, random_state=42)
             
-            if len(X_pca) > 10000:
-                tsne_result = model.fit_transform(X_pca[:10000])
+            if len(merged_df) > 10000:
+                tsne_result = model.fit_transform(merged_df[:10000])
             else:
-                tsne_result = model.fit_transform(X_pca)
+                tsne_result = model.fit_transform(merged_df)
 
             tsne_df = pd.DataFrame(data=tsne_result, columns=['tsne1', 'tsne2'])
             tsne_df['Name'] = names
             tsne_df['File'] = file_names
-
+            
+            if 'Label' in data.columns:
+                tsne_df.loc[data['Label'] == 0, 'Name'] = 'NA_'
+                
             tsne_df.to_csv(csv_file_path, index=False)  # t-SNE 결과를 CSV 파일로 저장
 
-        # pca = PCA(0.95)
-        # X_pca = pca.fit_transform(data_drop)
-        
-        # n_components = 2
-        # model = TSNE(n_components=n_components, random_state=42)
-        # tsne_result = model.fit_transform(X_pca[:10000])
-        
-        # tsne_df = pd.DataFrame(data=tsne_result, columns=['tsne1', 'tsne2'])
-        # tsne_df['Name'] = data['Name']
-        
+        if 'Label' in data.columns:
+            tsne_df.loc[data['Label'] == 0, 'Name'] = 'NA_'
         self.update_ui.emit(tsne_df, file_name)
         self.finished.emit()
         self.quit()

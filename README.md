@@ -1,14 +1,15 @@
 # Cygate GUI project 실행 방법
 
-- data 폴더 : 본 프로젝트에서 쓰인 데이터 셋입니다.
+- src/data 폴더 : 본 프로젝트에서 쓰인 데이터 셋입니다.
 - src 폴더 : 본 프로젝트의 소스코드입니다.
 
 
 
 ### 1. 실행시킬 가상환경 설치 및 접속
 
-### 2. git clone 받기 (src 폴더의 코드와 동일)  
-`https://github.com/wimmings/cygate-gui-project.git`
+### 2. git clone 받기
+`https://github.com/wimmings/cygate-gui-project.git`  
+`cd cygate-gui-project/src`
 
 ### 3. 가상환경 터미널에서 라이브러리 설치  
 `pip install -r requirements.txt`

@@ -86,7 +86,7 @@ class ManualGraph(QWidget):
         self.d3_mode_btn.setEnabled(False)
         self.d3_mode_btn.toggled.connect(self.d3_plot)
 
-        self.name_sep_btn = QPushButton("Background")
+        self.name_sep_btn = QPushButton("Compare Instance")
         self.name_sep_btn.toggled.connect(self.name_graph)
         self.name_sep_btn.setCheckable(True)
 
@@ -125,7 +125,7 @@ class ManualGraph(QWidget):
         group_z = QButtonGroup(self)
         self.radio_btn_density = QRadioButton('Density')
         self.radio_btn_feature = QRadioButton('Feature')
-        self.radio_btn_label = QRadioButton('Name')
+        self.radio_btn_label = QRadioButton('Legend')
         group_z.addButton(self.radio_btn_density)
         group_z.addButton(self.radio_btn_feature)
         group_z.addButton(self.radio_btn_label)

@@ -21,6 +21,7 @@ from manual_graph import ManualGraph
 from cygate_thread import CygateThread
 from train_tsne_thread import TrainTSNEThread
 from test_tsne_thread import TestTSNEThread
+from eval_graph import EvalGraph
 
 class MainView(QMainWindow):    
     def __init__(self):
@@ -78,6 +79,13 @@ class MainView(QMainWindow):
         UI_set.manual_clear_btn.clicked.connect(self.clear_list)
         UI_set.manual_run_btn.clicked.connect(self.manual_run)
         UI_set.manual_graph_tab.tabCloseRequested.connect(self.close_tab)
+
+        # Evaluation
+        UI_set.eval_load_btn.clicked.connect(self.eval_load_data)
+        UI_set.eval_remove_btn.clicked.connect(self.eval_remove_list)
+        UI_set.eval_clear_btn.clicked.connect(self.eval_clear_list)
+        UI_set.eval_run_btn.clicked.connect(self.eval_run)
+        UI_set.eval_graph_tab.tabCloseRequested.connect(self.close_tab)
 
         self.paths = []
         
@@ -821,8 +829,51 @@ class MainView(QMainWindow):
             if not os.path.exists(new_filename):
                 return new_filename
             index += 1
+    
+    def eval_remove_list(self): # Eval list 항목 제거
+        selected_item = UI_set.eval_list.currentItem()
+        name = selected_item.text()
+        if selected_item:
+            reply = QMessageBox.question(self, 'Item Remove', 'Do you really want to Remove Item?\n' + name,
+                                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
+            if reply == QMessageBox.Yes:
+                row = UI_set.eval_list.row(selected_item)
+                UI_set.eval_list.takeItem(row)
+                del self.paths[row]
 
+    def eval_clear_list(self):  # eval list 클리어
+        reply = QMessageBox.question(self, 'List Clear', 'Do you really want to clear list?',
+                                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+
+        if reply == QMessageBox.Yes:
+            UI_set.eval_list.clear()
+            self.paths = []
+
+    def eval_load_data(self): # eval list 항목 추가
+        file_dialog = QFileDialog()
+        file_dialog.setFileMode(QFileDialog.ExistingFiles)
+        file_dialog.setNameFilter("CSV files (*.csv)")
+
+        if file_dialog.exec():
+            selected_files = file_dialog.selectedFiles()
+        if selected_files:
+            selected_files_name = []
+            for i in selected_files:
+                self.paths.append(os.path.dirname(i))
+                selected_files_name.append(os.path.basename(i))
+            UI_set.eval_list.addItems(selected_files_name)
+
+    def eval_run(self):
+        data_name = UI_set.eval_list.currentItem().text()
+        data_path = self.paths[UI_set.eval_list.currentRow()] + "/" + data_name
+        data_name = data_name.split('.')[0]
+        data = pd.read_csv(data_path)
+        
+        eval_graph_instance = EvalGraph(data)
+
+        index = UI_set.eval_graph_tab.addTab(eval_graph_instance, data_name)
+        UI_set.eval_graph_tab.setTabToolTip(index,data_name)
         
 # 파일 경로 찾기
 def resource_path(relative_path):
